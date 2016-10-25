@@ -8,7 +8,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException, NoSuchElementException
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from pikaptcha.jibber import *
 from pikaptcha.ptcexceptions import *
@@ -82,10 +82,13 @@ def _validate_password(password):
 
 
 def create_account(username, password, email, birthday, captchakey2, captchatimeout):
+    
+    email = username + email
+    
     if password is not None:
         _validate_password(password)
 
-    print("Attempting to create user {user}:{pw}. Opening browser...".format(user=username, pw=password))
+    print("Attempting to create user {user}:{pw} using email {em}. Opening browser...".format(user=username, pw=password, em=email))
     if captchakey2 != None:
         dcap = dict(DesiredCapabilities.PHANTOMJS)
         dcap["phantomjs.page.settings.userAgent"] = user_agent
@@ -111,10 +114,38 @@ def create_account(username, password, email, birthday, captchakey2, captchatime
     # Create account page
     print("Step 2: Entering account details")
     assert driver.current_url == "{}/parents/sign-up".format(BASE_URL)
+    
+    if len(username) > 14:
+        try:
+            _validate_response(driver)
+        except:
+            print("Failed to create user: {}. Username too long".format(username))
+            driver.close()
+            raise
 
     user = driver.find_element_by_name("username")
     user.clear()
     user.send_keys(username)
+    
+    driver.find_element_by_id("check-availability-username").click()
+    
+    print("Checking username availability")
+    
+    text = None
+    while not text:
+        try:
+            text = driver.find_element_by_class_name("alert").text
+        except NoSuchElementException:
+            pass
+        
+    print(text)
+    if "available" not in text:
+        try:
+            _validate_response(driver)
+        except:
+            print("Failed to create user: {}".format(username))
+            driver.close()
+            raise
 
     elem = driver.find_element_by_name("password")
     elem.clear()
@@ -159,17 +190,17 @@ def create_account(username, password, email, birthday, captchakey2, captchatime
         captchaid = recaptcharesponse[3:]
         recaptcharesponse = "CAPCHA_NOT_READY"
         elem = driver.find_element_by_class_name("g-recaptcha")
-        print"We will wait 10 seconds for captcha to be solved by 2captcha"
+        print"We will wait 5 seconds for captcha to be solved by 2captcha"
         start_time = int(time.time())
         timedout = False
         while recaptcharesponse == "CAPCHA_NOT_READY":
-            time.sleep(10)            
+            time.sleep(5)            
             elapsedtime = int(time.time()) - start_time
             if elapsedtime > captchatimeout:
                 print("Captcha timeout reached. Exiting.")
                 timedout = True
                 break
-            print "Captcha still not solved, waiting another 10 seconds."
+            print "Captcha still not solved, waiting another 5 seconds."
             recaptcharesponse = "Failed"
             while(recaptcharesponse == "Failed"):
                 recaptcharesponse = openurl("http://2captcha.com/res.php?key=" + captchakey2 + "&action=get&id=" + captchaid)
