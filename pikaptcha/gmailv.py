@@ -19,9 +19,6 @@ def proc_mail(M):
             if rv!= 'OK':
                 print "Error getting message."
                 return
-            subjmsg = M.fetch(num, '(BODY[HEADER.FIELDS (SUBJECT)])')
-            subjmsg = subjmsg[1][0][1]
-            if subjmsg.find("Trainer_Club_Activation") != -1:
                 bodymsg = (M.fetch(num, "(UID BODY[TEXT])"))[1][0][1]
                 validkey_index = bodymsg.find("https://club.pokemon.com/us/pokemon-trainer-club/activated/")
                 if validkey_index != -1:
